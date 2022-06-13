@@ -25,6 +25,9 @@ from datetime import datetime
 import traceback
 
 
+timestamp_fmt = "%Y-%m-%d %H:%M:%S"
+
+
 class BaseMessage:
 
     def __init__ (self, selector:selectors, sock:socket, addr:str):
@@ -81,7 +84,8 @@ class BaseMessage:
             self._recv_bytes = self._recv_bytes[content_len:]
             encoding = self._json_header["content-encoding"]
             self._request = self._decode_json(data, encoding)
-            print (f"Received Request {self._request!r} from {self._addr}")
+            current_ts = datetime.strftime(datetime.now(), timestamp_fmt)
+            print (f"[{current_ts}] Received Request {self._request!r} from {self._addr}")
             self._set_selector_events_mask("w")
 
     def _set_selector_events_mask(self, mode:str):
@@ -97,8 +101,9 @@ class BaseMessage:
             # !!! TO DO: send the error message to another peer
         self._sel.modify(self._sock, events, data=self)
 
-    def _create_json_response (self):
-        content = {"result" : "This is test Message Response Content"}
+    def _create_json_response (self, content:dict=None):
+        if content is None:
+            content = {"result" : "This is test Message Response Content"}
         content_encoding = "utf-8"
         response = {
             "content_bytes" : self._encode_json(content, content_encoding),
@@ -116,7 +121,6 @@ class BaseMessage:
 
 
     def _create_message (self, *, content_bytes, content_type, content_encoding):
-        print ("_create_message")
         json_header = {
             "byteorder" : sys.byteorder,
             "content-type" : content_type,
@@ -135,7 +139,6 @@ class BaseMessage:
         except BlockingIOError:
             pass
         else:
-            print ("BaseMessage._read(); data:", data)
             if data:
                 self._recv_bytes += data
             else:
@@ -191,7 +194,7 @@ class ServerMessage (BaseMessage):
         if self._request and not self._is_response_created:
                 self._create_response()
         if self._sent_bytes:
-            current_ts = datetime.strftime(datetime.now(), "%Y-%m-%d %H:%M:%S")
+            current_ts = datetime.strftime(datetime.now(), timestamp_fmt)
             print (f"[{current_ts}] Sending {self._sent_bytes!r} to {self._addr}")
             try:
                 sent = self._sock.send(self._sent_bytes)
@@ -201,6 +204,22 @@ class ServerMessage (BaseMessage):
                 self._sent_bytes = self._sent_bytes[sent:]
                 if sent and not self._sent_bytes:
                     self.close()
+
+    def write_err_response (self, err_message:str):
+        content = {"result" : f"[Error] {err_message}"}
+        response = self._create_json_response(content)
+        message = self._create_message(**response)
+        self._sent_bytes += message
+        current_ts = datetime.strftime(datetime.now(), timestamp_fmt)
+        print (f"[{current_ts}] Sending {self._sent_bytes!r} to {self._addr}")
+        try:
+            sent = self._sock.send(self._sent_bytes)
+        except BlockingIOError:
+            pass   
+        else:
+            self._sent_bytes = self._sent_bytes[sent:]
+            if sent and not self._sent_bytes:
+                self.close()
 
     def read (self):
         #: read the raw content
@@ -241,7 +260,6 @@ class ClientMessage (BaseMessage):
             self._queue_request()
         self._write()
         if self._request_queued and not self._sent_bytes:
-                print ("there no buffer left to sent, listen for the read events")
                 #: if there no buffer left to sent, listen for the read events
                 self._set_selector_events_mask("r")
 
@@ -263,6 +281,7 @@ class ClientMessage (BaseMessage):
         if self._json_header["content-type"] == "text/json":
             encoding = self._json_header["content-encoding"]
             self._response = self._decode_json (data, encoding)
-        print (f"Received response {self._response!r} from {self._addr}")
+        current_ts = datetime.strftime(datetime.now(), timestamp_fmt)
+        print (f"[{current_ts}] Received response {self._response!r} from {self._addr}")
         self.close()
 

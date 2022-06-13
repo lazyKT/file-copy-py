@@ -7,6 +7,7 @@ import selectors
 import types
 
 from message import ServerMessage
+from exceptions import MissingConfigHeaderError
 
 
 class Server:
@@ -33,19 +34,21 @@ class Server:
         """Server Host Address Property"""
         return self._host
 
-    def _register(self, sock:socket.socket):
+    def _register (self, sock:socket.socket):
         conn, addr = sock.accept()
         print (f"Accepted connection from {addr}")
         conn.setblocking(False)
         message = ServerMessage(self._sel, conn, self._host)
         self._sel.register(conn, selectors.EVENT_READ, data=message)
 
-    def run (self):
+    def _listen (self):
         self._lsock.listen()
-        print ("Listening ...")
         self._lsock.setblocking(False)
+        print ("Listening ...")
         self._sel.register(self._lsock, selectors.EVENT_READ, data=None)
-        
+
+    def run (self):
+        self._listen()
         try:
             while True:
                 events = self._sel.select(timeout=None)
@@ -58,6 +61,11 @@ class Server:
                         message = key.data
                         try:
                             message.process_events(mask)
+                        except MissingConfigHeaderError as mche:
+                            print ("[Error]", repr(mche))
+                            #: Inform Client about the error message
+                            message.write_err_response(repr(mche))
+                            message.close()
                         except Exception:
                             print ("Uncaught exception at Server.run() %s" % traceback.format_exc())
                             message.close()
