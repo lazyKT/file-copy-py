@@ -48,7 +48,7 @@ class Server:
         self._sel.register(conn, selectors.EVENT_READ, data=message)
 
     def _listen (self):
-        self._lsock.listen()
+        self._lsock.listen(5)
         self._lsock.setblocking(False)
         print ("Listening ...")
         self._sel.register(self._lsock, selectors.EVENT_READ, data=None)

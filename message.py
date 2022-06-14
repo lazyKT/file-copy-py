@@ -27,6 +27,8 @@ import traceback
 
 timestamp_fmt = "%Y-%m-%d %H:%M:%S"
 MSG_LEN = 4096
+CONTENT_TYPE_TEXT_JSON = "json/text"
+CONTENT_TYPE_BINARY = "bytes"
 
 
 class BaseMessage:
@@ -83,8 +85,11 @@ class BaseMessage:
                 return
             data = self._recv_bytes[:content_len]
             self._recv_bytes = self._recv_bytes[content_len:]
-            encoding = self._json_header["content-encoding"]
-            self._request = self._decode_json(data, encoding)
+            if self._json_header["content-type"] == CONTENT_TYPE_TEXT_JSON:
+                encoding = self._json_header["content-encoding"]
+                self._request = self._decode_json(data, encoding)
+            else:
+                self._request = data
             current_ts = datetime.strftime(datetime.now(), timestamp_fmt)
             print (f"[{current_ts}] Received Request {self._request!r} from {self._addr}")
             self._set_selector_events_mask("w")
@@ -108,7 +113,7 @@ class BaseMessage:
         content_encoding = "utf-8"
         response = {
             "content_bytes" : self._encode_json(content, content_encoding),
-            "content_type" : "text/json",
+            "content_type" : CONTENT_TYPE_TEXT_JSON,
             "content_encoding" : content_encoding
         }
         return response
@@ -247,11 +252,18 @@ class ClientMessage (BaseMessage):
         content = self._request["content"]
         content_type = self._request["type"]
         content_encoding = self._request["encoding"]
-        req = {
-            "content_bytes" : self._encode_json(content, content_encoding),
-            "content_type" : content_type,
-            "content_encoding" : content_encoding
-        }
+        if content_type == "text/json":
+            req = {
+                "content_bytes" : self._encode_json(content, content_encoding),
+                "content_type" : content_type,
+                "content_encoding" : content_encoding
+            }
+        else:
+            req = {
+                "content_bytes" : content,
+                "content_type" : content_type,
+                "content_encoding" : content_encoding
+            }
         message = self._create_message(**req)
         self._sent_bytes += message
         self._request_queued = True
@@ -283,6 +295,8 @@ class ClientMessage (BaseMessage):
         if self._json_header["content-type"] == "text/json":
             encoding = self._json_header["content-encoding"]
             self._response = self._decode_json (data, encoding)
+        else:
+            self._response = data
         current_ts = datetime.strftime(datetime.now(), timestamp_fmt)
         print (f"[{current_ts}] Received response {self._response!r} from {self._addr}")
         self.close()

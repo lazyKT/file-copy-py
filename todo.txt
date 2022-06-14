@@ -1,0 +1,8 @@
+#: Both Server and Client Socket must not be blocking
+#: Server must be able to handle multiple client sockets concurrently 
+#: A client socket must not block other operations
+#: Both sockets must be able to handle different types of payload (text/binary/blob)
+#: Server will be (99% of time) in READ mode and only will be in WRITE mode when it is needed to response to client
+#: There must be more than one route to connect to Server Socket (Primary and backups)
+#: Client socket will automatically switch to back-up routes if primary route is unreachable
+#: Security
