@@ -26,6 +26,7 @@ import traceback
 
 
 timestamp_fmt = "%Y-%m-%d %H:%M:%S"
+MSG_LEN = 4096
 
 
 class BaseMessage:
@@ -135,7 +136,7 @@ class BaseMessage:
     def _read (self):
         """Read Raw Bytes from Socket"""
         try:
-            data = self._sock.recv(4096)
+            data = self._sock.recv(MSG_LEN)
         except BlockingIOError:
             pass
         else:
@@ -176,6 +177,7 @@ class BaseMessage:
         try:
             print ("Closing Message Object!")
             self._sel.unregister(self._sock)
+            self._sock.shutdown(1)
             self._sock.close()
         except OSError as oe:
             print (f"[OS ERROR] {repr(oe)}")
